@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
-from src.models.user import UserRegister, UserLogin, UserPublic
+from fastapi import APIRouter, HTTPException, Depends
+from src.models.user import UserRegister, UserLogin
 from src.utils.security import hash_password, verify_password, create_access_token, create_refresh_token
 from src.config.database import get_database
+from src.middleware.dependencies import get_current_user
 from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -46,7 +47,7 @@ async def logout(body: dict):
     return {"message": "Logged out"}
 
 @router.get("/me")
-async def me(current_user: dict = __import__('fastapi').Depends(__import__('src.middleware.auth', fromlist=['get_current_user']).get_current_user)):
+async def me(current_user: dict = Depends(get_current_user)):
     return {
         "id": str(current_user["_id"]),
         "username": current_user["username"],
