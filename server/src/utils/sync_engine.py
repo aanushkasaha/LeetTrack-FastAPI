@@ -2,14 +2,24 @@ from datetime import datetime
 from src.utils.leetcode import fetch_user_solved, fetch_problem_details
 from src.config.database import get_database
 
-async def sync_user_problems(user_id: str, leetcode_handle: str):
+
+async def sync_user_problems(user_id: str, leetcode_handle: str) -> dict:
     db = get_database()
+
+    # Raises on network/API failure — caller (router) handles it
     submissions = await fetch_user_solved(leetcode_handle)
+
+    inserted = 0
+    skipped = 0
 
     for sub in submissions:
         slug = sub.get("titleSlug")
+        if not slug:
+            continue
+
         existing = await db.problems.find_one({"user_id": user_id, "slug": slug})
         if existing:
+            skipped += 1
             continue
 
         details = await fetch_problem_details(slug)
@@ -36,5 +46,10 @@ async def sync_user_problems(user_id: str, leetcode_handle: str):
             "revisit_ease_factor": 2.5,
         }
         await db.problems.insert_one(problem)
+        inserted += 1
 
-    return {"synced": len(submissions)}
+    return {
+        "synced": inserted,
+        "skipped": skipped,
+        "total_fetched": len(submissions),
+    }

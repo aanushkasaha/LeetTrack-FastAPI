@@ -1,18 +1,24 @@
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from datetime import datetime
 from src.models.user import UserRegister, UserLogin
 from src.utils.security import hash_password, verify_password, create_access_token, create_refresh_token
 from src.config.database import get_database
 from src.middleware.dependencies import get_current_user
-from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+class LogoutBody(BaseModel):
+    refresh_token: str
+
 
 @router.post("/register")
 async def register(body: UserRegister):
     db = get_database()
     if await db.users.find_one({"email": body.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
     user = {
         "username": body.username,
         "email": body.email,
@@ -28,23 +34,29 @@ async def register(body: UserRegister):
     await db.users.update_one({"_id": result.inserted_id}, {"$set": {"refresh_token": refresh_token}})
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
+
 @router.post("/login")
 async def login(body: UserLogin):
     db = get_database()
     user = await db.users.find_one({"email": body.email})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     access_token = create_access_token({"sub": str(user["_id"])})
     refresh_token = create_refresh_token({"sub": str(user["_id"])})
     await db.users.update_one({"_id": user["_id"]}, {"$set": {"refresh_token": refresh_token}})
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
+
 @router.post("/logout")
-async def logout(body: dict):
+async def logout(body: LogoutBody):
     db = get_database()
-    await db.users.update_one({"refresh_token": body.get("refresh_token")}, {"$set": {"refresh_token": None}})
+    await db.users.update_one(
+        {"refresh_token": body.refresh_token},
+        {"$set": {"refresh_token": None}}
+    )
     return {"message": "Logged out"}
+
 
 @router.get("/me")
 async def me(current_user: dict = Depends(get_current_user)):

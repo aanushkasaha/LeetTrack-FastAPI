@@ -11,9 +11,6 @@ query userSolvedProblems($username: String!) {
         count
       }
     }
-    problemsSolvedBeatsStats {
-      difficulty
-    }
   }
   recentAcSubmissionList(username: $username, limit: 50) {
     id
@@ -24,26 +21,6 @@ query userSolvedProblems($username: String!) {
 }
 """
 
-ALL_PROBLEMS_QUERY = """
-query problemsetQuestionList($skip: Int!, $limit: Int!) {
-  problemsetQuestionList: questionList(
-    categorySlug: ""
-    limit: $limit
-    skip: $skip
-    filters: {}
-  ) {
-    questions: data {
-      questionId
-      title
-      titleSlug
-      difficulty
-      topicTags {
-        name
-      }
-    }
-  }
-}
-"""
 
 async def fetch_user_solved(username: str) -> list:
     async with httpx.AsyncClient() as client:
@@ -53,8 +30,10 @@ async def fetch_user_solved(username: str) -> list:
             headers={"Content-Type": "application/json", "Referer": "https://leetcode.com"},
             timeout=15,
         )
+        resp.raise_for_status()
         data = resp.json()
         return data.get("data", {}).get("recentAcSubmissionList", [])
+
 
 async def fetch_problem_details(slug: str) -> dict:
     query = """
@@ -75,4 +54,5 @@ async def fetch_problem_details(slug: str) -> dict:
             headers={"Content-Type": "application/json", "Referer": "https://leetcode.com"},
             timeout=15,
         )
+        resp.raise_for_status()
         return resp.json().get("data", {}).get("question", {})
