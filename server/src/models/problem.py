@@ -8,7 +8,6 @@ class Difficulty(str, Enum):
     medium = "Medium"
     hard = "Hard"
 
-
 class Status(str, Enum):
     solved = "Solved"
     attempted = "Attempted"
@@ -28,7 +27,6 @@ class ProblemInDB(BaseModel):
     solved_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
     revisit_flag: bool = False
     next_revisit: Optional[datetime] = None
     revisit_interval_days: int = 1
