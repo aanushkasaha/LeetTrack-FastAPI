@@ -1,3 +1,5 @@
 .env.env
 server/.env
 client/.env.localnode_modules/
+node_modules/
+client/node_modules/
