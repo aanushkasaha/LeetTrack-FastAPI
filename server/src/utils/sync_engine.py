@@ -1,13 +1,20 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from src.utils.leetcode import fetch_user_solved, fetch_problem_details
+from src.utils.cache import cache_get, cache_set
 from src.config.database import get_database
+
+SOLVED_CACHE_TTL = 300
+DETAILS_CACHE_TTL = 86400
 
 
 async def sync_user_problems(user_id: str, leetcode_handle: str) -> dict:
     db = get_database()
 
-    # Raises on network/API failure — caller (router) handles it
-    submissions = await fetch_user_solved(leetcode_handle)
+    cache_key = f"lc:solved:{leetcode_handle}"
+    submissions = await cache_get(cache_key)
+    if not submissions:
+        submissions = await fetch_user_solved(leetcode_handle)
+        await cache_set(cache_key, submissions, ttl=SOLVED_CACHE_TTL)
 
     inserted = 0
     skipped = 0
@@ -22,7 +29,13 @@ async def sync_user_problems(user_id: str, leetcode_handle: str) -> dict:
             skipped += 1
             continue
 
-        details = await fetch_problem_details(slug)
+        details_key = f"lc:details:{slug}"
+        details = await cache_get(details_key)
+        if not details:
+            details = await fetch_problem_details(slug)
+            if details:
+                await cache_set(details_key, details, ttl=DETAILS_CACHE_TTL)
+
         if not details:
             continue
 
@@ -37,9 +50,9 @@ async def sync_user_problems(user_id: str, leetcode_handle: str) -> dict:
             "companies": [],
             "notes": None,
             "approach": None,
-            "solved_at": datetime.utcfromtimestamp(int(sub.get("timestamp", 0))),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "solved_at": datetime.fromtimestamp(int(sub.get("timestamp", 0)), tz=timezone.utc),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "revisit_flag": False,
             "next_revisit": None,
             "revisit_interval_days": 1,

@@ -1,12 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from src.models.user import UserRegister, UserLogin
 from src.utils.security import hash_password, verify_password, create_access_token, create_refresh_token
 from src.config.database import get_database
 from src.middleware.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 class LogoutBody(BaseModel):
@@ -14,7 +18,8 @@ class LogoutBody(BaseModel):
 
 
 @router.post("/register")
-async def register(body: UserRegister):
+@limiter.limit("10/minute")
+async def register(request: Request, body: UserRegister):
     db = get_database()
     if await db.users.find_one({"email": body.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -24,8 +29,8 @@ async def register(body: UserRegister):
         "email": body.email,
         "password_hash": hash_password(body.password),
         "leetcode_handle": body.leetcode_handle,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
         "refresh_token": None,
     }
     result = await db.users.insert_one(user)
@@ -36,7 +41,8 @@ async def register(body: UserRegister):
 
 
 @router.post("/login")
-async def login(body: UserLogin):
+@limiter.limit("20/minute")
+async def login(request: Request, body: UserLogin):
     db = get_database()
     user = await db.users.find_one({"email": body.email})
     if not user or not verify_password(body.password, user["password_hash"]):
