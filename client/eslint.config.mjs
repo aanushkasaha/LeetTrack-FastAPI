@@ -19,7 +19,7 @@ const eslintConfig = defineConfig([
       // False positive: Date.now() inside a helper function (not directly in render)
       "react-hooks/purity": "off",
     },
-  },
+  },   
 ]);
 
 export default eslintConfig;
